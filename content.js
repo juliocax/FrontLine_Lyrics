@@ -1,12 +1,12 @@
 if (document.getElementById('frontline-lyrics-root')) {
-    console.log("FrontLine Lyrics já está rodando nesta aba.");
+    console.log("FrontLine Lyrics is already running on this tab.");
 } else {
     function apiFetch(endpoint) {
         return new Promise((resolve, reject) => {
             chrome.runtime.sendMessage({ action: "api_call", endpoint: endpoint }, (response) => {
                 if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
                 if (response && response.success) resolve(response.data);
-                else reject(new Error(response?.erro || "Erro de conexão"));
+                else reject(new Error(response?.erro || "Connection error"));
             });
         });
     }
@@ -100,46 +100,46 @@ if (document.getElementById('frontline-lyrics-root')) {
         <div class="lsp-header" id="lsp-drag-handle">
             <h2>FrontLine Lyrics</h2>
             <div style="display: flex; align-items: center; gap: 8px;">
-                <button id="lsp-btnReconectar">Tentar Conexão</button>
+                <button id="lsp-btnReconectar">Retry Connection</button>
                 <div id="lsp-status-icon" style="color: #a08d4c; font-size: 14px;">●</div>
-                <button id="lsp-fechar-extensao" class="lsp-btn-fechar" title="Encerrar extensão">&times;</button>
+                <button id="lsp-fechar-extensao" class="lsp-btn-fechar" title="Close extension">&times;</button>
             </div>
         </div>
 
         <div class="lsp-music-info">
-            <div id="lsp-musica">Aguardando...</div>
+            <div id="lsp-musica">Waiting...</div>
             <div id="lsp-artista">---</div>
         </div>
 
         <div class="lsp-controls-row">
-            <button id="lsp-btnIniciar">Ouvir</button>
-            <button id="lsp-btnParar">Parar</button>
-            <button id="lsp-btnManual">Buscar Letra</button>
+            <button id="lsp-btnIniciar">Listen</button>
+            <button id="lsp-btnParar">Stop</button>
+            <button id="lsp-btnManual">Search Lyrics</button>
         </div>
 
-        <button id="lsp-btnSelecionarLinha">Sincronia Manual</button>
+        <button id="lsp-btnSelecionarLinha">Manual Sync</button>
         <div id="lsp-listaLetraCompleta"></div>
 
         <div id="lsp-painelManual">
-            <input type="text" id="lsp-iptArtista" placeholder="Artista">
-            <input type="text" id="lsp-iptMusica" placeholder="Música">
-            <button id="lsp-btnBuscarManual">Buscar</button>
+            <input type="text" id="lsp-iptArtista" placeholder="Artist">
+            <input type="text" id="lsp-iptMusica" placeholder="Song">
+            <button id="lsp-btnBuscarManual">Search</button>
         </div>
         
-        <div id="lsp-status">Alt + M para ocultar</div>
+        <div id="lsp-status">Alt + M to hide</div>
         
 
         <div id="lsp-privacy-modal">
-            <h3>Sobre a Captura de Áudio</h3>
+            <h3>About Audio Capture</h3>
             <p>
-                Para sincronizar as letras, o modo "Ouvir" precisa captar o som do seu sistema temporariamente.
+                To sync lyrics, "Listen" mode needs to temporarily capture your system audio.
             </p>
             <p>
-                Sua voz e suas chamadas não são gravadas nem enviadas. O app gera apenas uma "impressão digital" matemática da batida da música de forma anônima para buscar a letra correta.
+                Your voice and calls are not recorded or sent. The app only generates an anonymous mathematical "fingerprint" of the song's beat to fetch the correct lyrics.
             </p>
             <div class="modal-buttons">
-                <button id="lsp-btnAceitarPrivacidade" class="btn-accept">Aceitar</button>
-                <button id="lsp-btnRecusarPrivacidade" class="btn-reject">Cancelar</button>
+                <button id="lsp-btnAceitarPrivacidade" class="btn-accept">Accept</button>
+                <button id="lsp-btnRecusarPrivacidade" class="btn-reject">Cancel</button>
             </div>
         </div>
     </div>
@@ -209,7 +209,7 @@ if (document.getElementById('frontline-lyrics-root')) {
     
     shadow.getElementById('lsp-btnParar').onclick = () => {
         apiFetch('/parar');
-        elMusica.innerText = "Parado";
+        elMusica.innerText = "Stopped";
         elArtista.innerText = "---";
         elListaLetra.style.display = 'none';
         overlay.style.display = "none"; 
@@ -225,7 +225,7 @@ if (document.getElementById('frontline-lyrics-root')) {
         const mus = shadow.getElementById('lsp-iptMusica').value;
         if(!art || !mus) return;
         
-        elStatus.innerText = "Buscando...";
+        elStatus.innerText = "Searching...";
         
         try {
             const data = await apiFetch(`/buscar_manual?artista=${encodeURIComponent(art)}&musica=${encodeURIComponent(mus)}`);
@@ -234,12 +234,12 @@ if (document.getElementById('frontline-lyrics-root')) {
                 elListaLetra.style.display = 'block';
                 elPainelManual.style.display = 'none'; 
             } else {
-                elStatus.innerText = "Letra não encontrada!";
-                setTimeout(() => { elStatus.innerText = "Alt + M para ocultar"; }, 3000);
+                elStatus.innerText = "Lyrics not found!";
+                setTimeout(() => { elStatus.innerText = "Alt + M to hide"; }, 3000);
             }
         } catch (e) {
-            elStatus.innerText = "Erro de conexão ao buscar.";
-            setTimeout(() => { elStatus.innerText = "Alt + M para ocultar"; }, 3000);
+            elStatus.innerText = "Connection error while searching.";
+            setTimeout(() => { elStatus.innerText = "Alt + M to hide"; }, 3000);
         }
     };
 
@@ -315,7 +315,7 @@ if (document.getElementById('frontline-lyrics-root')) {
             const p = document.createElement('div'); 
             p.style.cssText = styleMain; 
             p.style.color = "#aaaaaa"; 
-            p.innerText = "Desculpe, a letra não foi encontrada"; 
+            p.innerText = "Sorry, lyrics not found"; 
             overlay.appendChild(p);
             return;
         }
@@ -347,11 +347,11 @@ if (document.getElementById('frontline-lyrics-root')) {
             btnReconectar.style.display = "none";
 
             if(data.escutando) {
-                elMusica.innerText = data.musica || "Identificando...";
+                elMusica.innerText = data.musica || "Identifying...";
                 elMusica.style.color = "#fff"; 
                 elArtista.innerText = data.artista || "---";
                 
-                if (data.status_msg !== "Alt + M para ocultar" || elStatus.innerText !== "Letra não encontrada!") {
+                if (data.status_msg !== "Alt + M to hide" || elStatus.innerText !== "Lyrics not found!") {
                      elStatus.innerText = data.status_msg;
                 }
                 
@@ -360,7 +360,7 @@ if (document.getElementById('frontline-lyrics-root')) {
                 overlay.style.display = "flex"; 
                 atualizarLetraNoOverlay(data);
             } else {
-                elMusica.innerText = "Nenhuma música...";
+                elMusica.innerText = "No song...";
                 overlay.style.display = "none";
                 btnSinc.style.display = "none";
             }
@@ -368,10 +368,10 @@ if (document.getElementById('frontline-lyrics-root')) {
             elStatusIcon.style.color = "#8b4545"; 
             btnReconectar.style.display = "block";
             
-            elMusica.innerText = "Servidor Offline";
+            elMusica.innerText = "Server Offline";
             elMusica.style.color = "#8b4545";
             elArtista.innerText = "---";
-            elStatus.innerText = "Abra o FrontLine Lyrics.exe";
+            elStatus.innerText = "Open FrontLine Lyrics.exe";
             overlay.style.display = "none";
             btnSinc.style.display = "none";
             
@@ -382,7 +382,7 @@ if (document.getElementById('frontline-lyrics-root')) {
     btnReconectar.onclick = () => {
         elStatusIcon.style.color = "#a08d4c"; 
         btnReconectar.style.display = "none";
-        elMusica.innerText = "Conectando...";
+        elMusica.innerText = "Connecting...";
         elMusica.style.color = "#888";
         
         mainLoop(); 

@@ -11,7 +11,7 @@ const rotasPermitidas = [
 
 chrome.action.onClicked.addListener(async (tab) => {
     if (tab.url.startsWith("chrome://") || tab.url.startsWith("edge://")) {
-        console.warn("O FrontLine Lyrics não pode ser ativado em páginas internas do navegador.");
+        console.warn("FrontLine Lyrics cannot be activated on internal browser pages.");
         return; 
     }
 
@@ -28,7 +28,7 @@ chrome.action.onClicked.addListener(async (tab) => {
             });
             abasAtivas.add(tab.id);
         } catch (erro) {
-            console.error("Erro ao tentar injetar o script:", erro);
+            console.error("Error attempting to inject script:", erro);
         }
     }
 });
@@ -49,8 +49,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const basePath = request.endpoint.split('?')[0];
         
         if (!rotasPermitidas.includes(basePath)) {
-            console.warn(`Tentativa de acesso não autorizada na rota: ${basePath}`);
-            sendResponse({ success: false, erro: "Acesso bloqueado por segurança." });
+            console.warn(`Unauthorized access attempt on route: ${basePath}`);
+            sendResponse({ success: false, erro: "Access blocked for security." });
             return true;
         }
 

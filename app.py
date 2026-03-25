@@ -22,8 +22,8 @@ app = Flask(__name__)
 def verificar_origem():
     origin = request.headers.get('Origin')
     if origin and not origin.startswith('chrome-extension://'):
-        log(f"Tentativa de acesso bloqueada da origem: {origin}", "SEGURANÇA")
-        return jsonify({"erro": "Acesso não autorizado."}), 403
+        log(f"Access attempt blocked from origin: {origin}", "SECURITY")
+        return jsonify({"erro": "Unauthorized access."}), 403
 
 def resource_path(relative_path):
     try:
@@ -32,7 +32,7 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-def log(mensagem, categoria="SISTEMA"):
+def log(mensagem, categoria="SYSTEM"):
     timestamp = time.strftime("%H:%M:%S")
     print(f"[{timestamp}] [{categoria}] {mensagem}")
 
@@ -57,16 +57,16 @@ class MusicManager:
                         return loopback
             
             if not default_speakers["isLoopbackDevice"]:
-                raise Exception("Nenhum dispositivo de loopback detectado.")
+                raise Exception("No loopback device detected.")
                 
             return default_speakers
         except Exception as e:
-            log(f"Erro ao configurar áudio: {e}", "ERRO")
+            log(f"Error configuring audio: {e}", "ERROR")
             return None
 
     def gravar_audio_memoria(self, duracao):
         if not self.device_info:
-            raise Exception("Dispositivo de áudio não configurado corretamente.")
+            raise Exception("Audio device not configured correctly.")
             
         CHUNK = 512
         canais = self.device_info["maxInputChannels"]
@@ -100,7 +100,7 @@ class MusicManager:
             return audio_buffer.getvalue() 
             
         except Exception as e:
-            log(f"ERRO NA GRAVAÇÃO: {e}", "ERRO")
+            log(f"RECORDING ERROR: {e}", "ERROR")
             raise e 
 
     def encerrar_audio(self):
@@ -115,7 +115,7 @@ class MusicManager:
         self.delay_manual = 0.0 
         self.escutando = False   
         self.busca_concluida = False 
-        self.status_busca = "Alt + M para ocultar" 
+        self.status_busca = "Alt + M to hide" 
 
     async def reconhecer_snippet(self, audio_bytes):
         try:
@@ -125,7 +125,7 @@ class MusicManager:
                 offset_s = resultado.get('matches', [{}])[0].get('offset', 0.0)
                 return track['title'], track['subtitle'], offset_s
         except Exception as e:
-            log(f"Erro no Shazam: {e}", "ERRO")
+            log(f"Shazam error: {e}", "ERROR")
         return None, None, 0.0
 
     def buscar_letra_lrclib(self, artista, musica):
@@ -155,11 +155,11 @@ class MusicManager:
                     return linhas
             
             elif r.status_code == 429:
-                log("Aviso: Limite de requisições da LRCLib atingido.", "AVISO")
-                return [{"tempo": 0.0, "letra": "Servidor de letras sobrecarregado. Aguarde um pouco."}]
+                log("Warning: LRCLib request limit reached.", "WARNING")
+                return [{"tempo": 0.0, "letra": "Lyrics server overloaded. Please wait."}]
                 
         except Exception as e:
-            log(f"Erro na busca LRCLib: {e}", "ERRO")
+            log(f"LRCLib search error: {e}", "ERROR")
         return None
 
 manager = MusicManager()
@@ -198,7 +198,7 @@ def get_status():
 def iniciar_escuta():
     manager.reset_state()
     manager.escutando = True
-    manager.status_busca = "Ouvindo..."
+    manager.status_busca = "Listening..."
     return jsonify({"status": "processando"})
 
 @app.route('/parar', methods=['GET'])
@@ -213,7 +213,7 @@ def get_letra_completa():
             "status": "sucesso",
             "letra": manager.letra_sincronizada
         })
-    return jsonify({"status": "erro", "mensagem": "Nenhuma letra carregada"})
+    return jsonify({"status": "erro", "mensagem": "No lyrics loaded"})
 
 @app.route('/sincronizar_manual', methods=['GET'])
 def sincronizar_manual():
@@ -230,7 +230,7 @@ def buscar_manual():
     musica = request.args.get('musica')
     
     if not artista or not musica:
-        return jsonify({"status": "erro", "mensagem": "Faltam parâmetros"}), 400
+        return jsonify({"status": "erro", "mensagem": "Missing parameters"}), 400
         
     letra = manager.buscar_letra_lrclib(artista, musica)
     manager.busca_concluida = True
@@ -242,11 +242,11 @@ def buscar_manual():
         manager.escutando = True  
         manager.tempo_referencia_sistema = time.time()
         manager.delay_manual = 0.0
-        manager.status_busca = "Alt + M para ocultar"
+        manager.status_busca = "Alt + M to hide"
         return jsonify({"status": "sucesso", "letra_completa": letra})
     else:
-        manager.status_busca = "Alt + M para ocultar"
-        return jsonify({"status": "erro", "mensagem": "Letra não encontrada"}), 404
+        manager.status_busca = "Alt + M to hide"
+        return jsonify({"status": "erro", "mensagem": "Lyrics not found"}), 404
 
 async def async_worker_verificacao(manager):
     loop = asyncio.get_event_loop()
@@ -261,8 +261,8 @@ async def async_worker_verificacao(manager):
         try:
             audio_bytes = await loop.run_in_executor(None, manager.gravar_audio_memoria, INITIAL_RECORD_SECONDS)
         except Exception as e:
-            log(f"Erro ao capturar áudio. Tentando reconfigurar dispositivo...", "AVISO")
-            manager.status_busca = "Áudio desconectado. Reconectando..."
+            log(f"Error capturing audio. Attempting to reconfigure device...", "WARNING")
+            manager.status_busca = "Audio disconnected. Reconnecting..."
             manager.device_info = manager._configurar_loopback()
             await asyncio.sleep(2)
             continue
@@ -272,14 +272,14 @@ async def async_worker_verificacao(manager):
         nova_musica, novo_artista, offset_shazam = await manager.reconhecer_snippet(audio_bytes)
         
         if nova_musica and manager.escutando:
-            log(f"Identificado: {nova_musica}", "LOGIC")
+            log(f"Identified: {nova_musica}", "LOGIC")
             manager.musica_atual = nova_musica
             manager.artista_atual = novo_artista
-            manager.status_busca = "Buscando letra..."
+            manager.status_busca = "Fetching lyrics..."
             
             letra = await loop.run_in_executor(None, manager.buscar_letra_lrclib, novo_artista, nova_musica)
             manager.busca_concluida = True
-            manager.status_busca = "Alt + M para ocultar"
+            manager.status_busca = "Alt + M to hide"
             
             if letra:
                 manager.letra_sincronizada = letra
@@ -303,15 +303,15 @@ def criar_icone():
     return imagem
 
 def sair_do_app(icon, item):
-    log("Encerrando aplicação...", "SISTEMA")
+    log("Closing application...", "SYSTEM")
     manager.servidor_rodando = False
     manager.encerrar_audio()
     icon.stop()
     os._exit(0)
 
 def iniciar_bandeja():
-    menu = pystray.Menu(pystray.MenuItem('Sair do FrontLine Lyrics', sair_do_app))
-    icone = pystray.Icon("FrontLineLyrics", criar_icone(), "FrontLine Lyrics (Servidor)", menu)
+    menu = pystray.Menu(pystray.MenuItem('Quit FrontLine Lyrics', sair_do_app))
+    icone = pystray.Icon("FrontLineLyrics", criar_icone(), "FrontLine Lyrics (Server)", menu)
     icone.run()
 
 if __name__ == "__main__":
@@ -323,6 +323,6 @@ if __name__ == "__main__":
     
     threading.Thread(target=start_background_loop, args=(manager,), daemon=True).start()
     
-    log("Servidor rodando em segundo plano. Verifique o ícone na bandeja.")
+    log("Server running in the background. Check the tray icon.")
 
     iniciar_bandeja()

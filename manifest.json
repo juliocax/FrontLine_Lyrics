@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FrontLine Lyrics",
-  "version": "1.0",
+  "version": "0.1",
  "permissions": [
     "activeTab",
     "scripting",
@@ -15,7 +15,7 @@
       "16": "logo16.png",
       "32": "logo32.png"
     },
-    "default_title": "Ligar/Desligar FrontLine Lyrics"
+    "default_title": "Toggle FrontLine Lyrics"
   },
   "background": {
     "service_worker": "background.js"
