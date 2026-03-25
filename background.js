@@ -1,5 +1,14 @@
 const abasAtivas = new Set();
 
+const rotasPermitidas = [
+    '/status', 
+    '/iniciar', 
+    '/parar', 
+    '/letra_completa', 
+    '/sincronizar_manual', 
+    '/buscar_manual'
+];
+
 chrome.action.onClicked.addListener(async (tab) => {
     if (tab.url.startsWith("chrome://") || tab.url.startsWith("edge://")) {
         console.warn("O FrontLine Lyrics não pode ser ativado em páginas internas do navegador.");
@@ -31,5 +40,25 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status === 'loading') {
         abasAtivas.delete(tabId);
+    }
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "api_call") {
+        
+        const basePath = request.endpoint.split('?')[0];
+        
+        if (!rotasPermitidas.includes(basePath)) {
+            console.warn(`Tentativa de acesso não autorizada na rota: ${basePath}`);
+            sendResponse({ success: false, erro: "Acesso bloqueado por segurança." });
+            return true;
+        }
+
+        fetch(`http://localhost:5000${request.endpoint}`)
+            .then(res => res.json())
+            .then(data => sendResponse({ success: true, data }))
+            .catch(erro => sendResponse({ success: false, erro: erro.message }));
+        
+        return true; 
     }
 });

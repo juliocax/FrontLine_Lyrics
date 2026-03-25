@@ -9,16 +9,21 @@ import io
 import sys
 import os
 from flask import Flask, jsonify, request
-from flask_cors import CORS
 from shazamio import Shazam
 import pystray
-from PIL import Image, ImageDraw
+from PIL import Image
 
 INITIAL_RECORD_SECONDS = 10   
 NORMAL_INTERVAL = 1           
 
 app = Flask(__name__)
-CORS(app)
+
+@app.before_request
+def verificar_origem():
+    origin = request.headers.get('Origin')
+    if origin and not origin.startswith('chrome-extension://'):
+        log(f"Tentativa de acesso bloqueada da origem: {origin}", "SEGURANÇA")
+        return jsonify({"erro": "Acesso não autorizado."}), 403
 
 def resource_path(relative_path):
     try:
@@ -31,60 +36,75 @@ def log(mensagem, categoria="SISTEMA"):
     timestamp = time.strftime("%H:%M:%S")
     print(f"[{timestamp}] [{categoria}] {mensagem}")
 
-def gravar_audio_memoria(duracao):
-    CHUNK = 512
-    p = pyaudio.PyAudio()
-    try:
-        wasapi_info = p.get_host_api_info_by_type(pyaudio.paWASAPI)
-        default_speakers = p.get_device_info_by_index(wasapi_info["defaultOutputDevice"])
-        
-        loopback_encontrado = False
-        if not default_speakers["isLoopbackDevice"]:
-            for loopback in p.get_loopback_device_info_generator():
-                if default_speakers["name"] in loopback["name"]:
-                    default_speakers = loopback
-                    loopback_encontrado = True
-                    break
-        
-        if not loopback_encontrado and not default_speakers["isLoopbackDevice"]:
-            raise Exception("Nenhum dispositivo de áudio detectado.")
-
-        canais = default_speakers["maxInputChannels"]
-        taxa = int(default_speakers["defaultSampleRate"])
-
-        stream = p.open(format=pyaudio.paInt16, channels=canais, rate=taxa,
-                        frames_per_buffer=CHUNK, input=True,
-                        input_device_index=default_speakers["index"])
-
-        frames = []
-        for _ in range(0, int(taxa / CHUNK * duracao)):
-            frames.append(stream.read(CHUNK))
-
-        stream.stop_stream()
-        stream.close()
-
-        audio_buffer = io.BytesIO()
-        wf = wave.open(audio_buffer, 'wb')
-        wf.setnchannels(canais)
-        wf.setsampwidth(p.get_sample_size(pyaudio.paInt16))
-        wf.setframerate(taxa)
-        wf.writeframes(b''.join(frames))
-        wf.close()
-        
-        return audio_buffer.getvalue() 
-        
-    except Exception as e:
-        log(f"ERRO NA GRAVAÇÃO: {e}", "ERRO")
-        raise e 
-    finally:
-        p.terminate()
-
 class MusicManager:
     def __init__(self):
         self.shazam = Shazam()
         self.session_id = time.time()
         self.servidor_rodando = True   
+        self.pyaudio_instance = pyaudio.PyAudio()
+        self.device_info = self._configurar_loopback()
+        
         self.reset_state()
+
+    def _configurar_loopback(self):
+        try:
+            wasapi_info = self.pyaudio_instance.get_host_api_info_by_type(pyaudio.paWASAPI)
+            default_speakers = self.pyaudio_instance.get_device_info_by_index(wasapi_info["defaultOutputDevice"])
+            
+            if not default_speakers["isLoopbackDevice"]:
+                for loopback in self.pyaudio_instance.get_loopback_device_info_generator():
+                    if default_speakers["name"] in loopback["name"]:
+                        return loopback
+            
+            if not default_speakers["isLoopbackDevice"]:
+                raise Exception("Nenhum dispositivo de loopback detectado.")
+                
+            return default_speakers
+        except Exception as e:
+            log(f"Erro ao configurar áudio: {e}", "ERRO")
+            return None
+
+    def gravar_audio_memoria(self, duracao):
+        if not self.device_info:
+            raise Exception("Dispositivo de áudio não configurado corretamente.")
+            
+        CHUNK = 512
+        canais = self.device_info["maxInputChannels"]
+        taxa = int(self.device_info["defaultSampleRate"])
+
+        try:
+            stream = self.pyaudio_instance.open(
+                format=pyaudio.paInt16, 
+                channels=canais, 
+                rate=taxa,
+                frames_per_buffer=CHUNK, 
+                input=True,
+                input_device_index=self.device_info["index"]
+            )
+
+            frames = []
+            for _ in range(0, int(taxa / CHUNK * duracao)):
+                frames.append(stream.read(CHUNK))
+
+            stream.stop_stream()
+            stream.close()
+
+            audio_buffer = io.BytesIO()
+            wf = wave.open(audio_buffer, 'wb')
+            wf.setnchannels(canais)
+            wf.setsampwidth(self.pyaudio_instance.get_sample_size(pyaudio.paInt16))
+            wf.setframerate(taxa)
+            wf.writeframes(b''.join(frames))
+            wf.close()
+            
+            return audio_buffer.getvalue() 
+            
+        except Exception as e:
+            log(f"ERRO NA GRAVAÇÃO: {e}", "ERRO")
+            raise e 
+
+    def encerrar_audio(self):
+        self.pyaudio_instance.terminate()
 
     def reset_state(self):
         self.session_id = time.time() 
@@ -125,20 +145,24 @@ class MusicManager:
 
             url_get = "https://lrclib.net/api/get"
             r = requests.get(url_get, params={"artist_name": artista, "track_name": musica}, headers=headers, timeout=5)
+            
             if r.status_code == 200:
                 dados = r.json()
                 if dados.get("syncedLyrics"):
                     linhas = extrair_linhas(dados["syncedLyrics"])
                     if linhas:
-                        # Adiciona a marcação "End" 5 segundos após a última frase
                         linhas.append({"tempo": linhas[-1]["tempo"] + 5.0, "letra": "End"})
                     return linhas
+            
+            elif r.status_code == 429:
+                log("Aviso: Limite de requisições da LRCLib atingido.", "AVISO")
+                return [{"tempo": 0.0, "letra": "Servidor de letras sobrecarregado. Aguarde um pouco."}]
+                
         except Exception as e:
             log(f"Erro na busca LRCLib: {e}", "ERRO")
         return None
 
 manager = MusicManager()
-
 
 @app.route('/status', methods=['GET'])
 def get_status():
@@ -235,10 +259,12 @@ async def async_worker_verificacao(manager):
         t_inicio_gravacao = time.time()
         
         try:
-            audio_bytes = await loop.run_in_executor(None, gravar_audio_memoria, INITIAL_RECORD_SECONDS)
+            audio_bytes = await loop.run_in_executor(None, manager.gravar_audio_memoria, INITIAL_RECORD_SECONDS)
         except Exception as e:
-            manager.status_busca = "Erro: Áudio não detectado."
-            manager.escutando = False
+            log(f"Erro ao capturar áudio. Tentando reconfigurar dispositivo...", "AVISO")
+            manager.status_busca = "Áudio desconectado. Reconectando..."
+            manager.device_info = manager._configurar_loopback()
+            await asyncio.sleep(2)
             continue
         
         if manager.session_id != current_session or not manager.escutando: continue
@@ -259,7 +285,6 @@ async def async_worker_verificacao(manager):
                 manager.letra_sincronizada = letra
                 manager.tempo_referencia_sistema = t_inicio_gravacao - offset_shazam
             else:
-                # Se não encontrar, o status volta ao padrão e o front-end exibe a mensagem no overlay
                 pass
         
         await asyncio.sleep(NORMAL_INTERVAL)
@@ -280,6 +305,7 @@ def criar_icone():
 def sair_do_app(icon, item):
     log("Encerrando aplicação...", "SISTEMA")
     manager.servidor_rodando = False
+    manager.encerrar_audio()
     icon.stop()
     os._exit(0)
 

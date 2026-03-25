@@ -2,9 +2,10 @@
   "manifest_version": 3,
   "name": "FrontLine Lyrics",
   "version": "1.0",
-  "permissions": [
+ "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "host_permissions": [
     "http://localhost:5000/*"

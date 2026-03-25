@@ -1,9 +1,21 @@
-if (window.frontLineLyricsInjetado) {
+if (document.getElementById('frontline-lyrics-root')) {
     console.log("FrontLine Lyrics já está rodando nesta aba.");
 } else {
-    window.frontLineLyricsInjetado = true;
+    function apiFetch(endpoint) {
+        return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ action: "api_call", endpoint: endpoint }, (response) => {
+                if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+                if (response && response.success) resolve(response.data);
+                else reject(new Error(response?.erro || "Erro de conexão"));
+            });
+        });
+    }
 
-    const SERVER_URL = "http://localhost:5000";
+    const host = document.createElement('div');
+    host.id = 'frontline-lyrics-root';
+    document.body.appendChild(host);
+    
+    const shadow = host.attachShadow({ mode: 'closed' });
 
     const panelHTML = `
     <div id="lsp-panel-container">
@@ -46,6 +58,7 @@ if (window.frontLineLyricsInjetado) {
             .lsp-linha-clicavel:hover { background: #222; color: #fff; }
             
             #lsp-status { font-size: 10px; color: #888; text-align: center; margin-top: 10px; }
+            .lsp-aviso-privacidade { font-size: 9px; color: #cc8800; text-align: center; margin-top: 6px; line-height: 1.2; }
 
             .lsp-btn-fechar {
                 background: none !important; border: none !important; color: #888 !important;
@@ -55,6 +68,33 @@ if (window.frontLineLyricsInjetado) {
             .lsp-btn-fechar:hover { color: #fff !important; }
             
             #lsp-btnReconectar { display: none; padding: 4px 8px !important; font-size: 10px !important; margin-right: 5px; }
+
+            /* Estilos do Modal de Privacidade */
+            #lsp-privacy-modal {
+                display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(26, 26, 26, 0.95); z-index: 100; border-radius: 8px;
+                flex-direction: column; justify-content: center; align-items: center;
+                padding: 15px; text-align: center; box-sizing: border-box;
+                backdrop-filter: blur(4px);
+            }
+            #lsp-privacy-modal h3 { color: #e74c3c; margin: 0 0 10px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;}
+            #lsp-privacy-modal p { font-size: 11px; color: #ccc; margin-bottom: 10px; line-height: 1.4; text-align: left; }
+            .modal-buttons { display: flex; gap: 8px; width: 100%; margin-top: 10px; }
+            .btn-accept { background: #27ae60 !important; color: white !important; }
+            .btn-accept:hover { background: #2ecc71 !important; }
+            .btn-reject { background: #c0392b !important; color: white !important; }
+            .btn-reject:hover { background: #e74c3c !important; }
+
+            #lsp-overlay {
+                position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+                z-index: 2147483646; background: rgba(0,0,0,0.85); color: white;
+                border-radius: 10px; text-align: center;
+                cursor: grab; user-select: none;
+                width: 450px; height: 160px; 
+                resize: both; overflow: hidden; 
+                display: flex; flex-direction: column; justify-content: center; align-items: center;
+                padding: 10px; box-sizing: border-box;
+            }
         </style>
         
         <div class="lsp-header" id="lsp-drag-handle">
@@ -87,20 +127,43 @@ if (window.frontLineLyricsInjetado) {
         </div>
         
         <div id="lsp-status">Alt + M para ocultar</div>
+        
+
+        <div id="lsp-privacy-modal">
+            <h3>Sobre a Captura de Áudio</h3>
+            <p>
+                Para sincronizar as letras, o modo "Ouvir" precisa captar o som do seu sistema temporariamente.
+            </p>
+            <p>
+                Sua voz e suas chamadas não são gravadas nem enviadas. O app gera apenas uma "impressão digital" matemática da batida da música de forma anônima para buscar a letra correta.
+            </p>
+            <div class="modal-buttons">
+                <button id="lsp-btnAceitarPrivacidade" class="btn-accept">Aceitar</button>
+                <button id="lsp-btnRecusarPrivacidade" class="btn-reject">Cancelar</button>
+            </div>
+        </div>
     </div>
+    
+    <div id="lsp-overlay" style="display: none;"></div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', panelHTML);
+    shadow.innerHTML = panelHTML;
 
-    const painel = document.getElementById('lsp-panel-container');
-    const elMusica = document.getElementById('lsp-musica');
-    const elArtista = document.getElementById('lsp-artista');
-    const elStatus = document.getElementById('lsp-status');
-    const elStatusIcon = document.getElementById('lsp-status-icon');
-    const btnReconectar = document.getElementById('lsp-btnReconectar');
-    const elPainelManual = document.getElementById('lsp-painelManual');
-    const elListaLetra = document.getElementById('lsp-listaLetraCompleta');
-    const btnSinc = document.getElementById('lsp-btnSelecionarLinha');
+    const painel = shadow.getElementById('lsp-panel-container');
+    const elMusica = shadow.getElementById('lsp-musica');
+    const elArtista = shadow.getElementById('lsp-artista');
+    const elStatus = shadow.getElementById('lsp-status');
+    const elStatusIcon = shadow.getElementById('lsp-status-icon');
+    const btnReconectar = shadow.getElementById('lsp-btnReconectar');
+    const elPainelManual = shadow.getElementById('lsp-painelManual');
+    const elListaLetra = shadow.getElementById('lsp-listaLetraCompleta');
+    const btnSinc = shadow.getElementById('lsp-btnSelecionarLinha');
+    const overlay = shadow.getElementById('lsp-overlay');
+    
+    // Elementos do Modal
+    const privacyModal = shadow.getElementById('lsp-privacy-modal');
+    const btnAceitarPrivacidade = shadow.getElementById('lsp-btnAceitarPrivacidade');
+    const btnRecusarPrivacidade = shadow.getElementById('lsp-btnRecusarPrivacidade');
 
     function aplicarArraste(elemento, alça) {
         let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
@@ -121,12 +184,31 @@ if (window.frontLineLyricsInjetado) {
             };
         };
     }
-    aplicarArraste(painel, document.getElementById('lsp-drag-handle'));
+    aplicarArraste(painel, shadow.getElementById('lsp-drag-handle'));
 
-    document.getElementById('lsp-btnIniciar').onclick = () => fetch(`${SERVER_URL}/iniciar`);
+    shadow.getElementById('lsp-btnIniciar').onclick = () => {
+        chrome.storage.local.get(['privacidadeAceita'], function(result) {
+            if (result.privacidadeAceita) {
+                apiFetch('/iniciar');
+            } else {
+                privacyModal.style.display = 'flex';
+            }
+        });
+    };
+
+    btnAceitarPrivacidade.onclick = () => {
+        chrome.storage.local.set({privacidadeAceita: true}, function() {
+            privacyModal.style.display = 'none';
+            apiFetch('/iniciar');
+        });
+    };
+
+    btnRecusarPrivacidade.onclick = () => {
+        privacyModal.style.display = 'none';
+    };
     
-    document.getElementById('lsp-btnParar').onclick = () => {
-        fetch(`${SERVER_URL}/parar`);
+    shadow.getElementById('lsp-btnParar').onclick = () => {
+        apiFetch('/parar');
         elMusica.innerText = "Parado";
         elArtista.innerText = "---";
         elListaLetra.style.display = 'none';
@@ -134,21 +216,19 @@ if (window.frontLineLyricsInjetado) {
         btnSinc.style.display = "none";
     };
 
-    document.getElementById('lsp-btnManual').onclick = () => {
+    shadow.getElementById('lsp-btnManual').onclick = () => {
         elPainelManual.style.display = elPainelManual.style.display === 'none' ? 'flex' : 'none';
     };
 
-    document.getElementById('lsp-btnBuscarManual').onclick = async () => {
-        const art = document.getElementById('lsp-iptArtista').value;
-        const mus = document.getElementById('lsp-iptMusica').value;
+    shadow.getElementById('lsp-btnBuscarManual').onclick = async () => {
+        const art = shadow.getElementById('lsp-iptArtista').value;
+        const mus = shadow.getElementById('lsp-iptMusica').value;
         if(!art || !mus) return;
         
         elStatus.innerText = "Buscando...";
         
         try {
-            const res = await fetch(`${SERVER_URL}/buscar_manual?artista=${encodeURIComponent(art)}&musica=${encodeURIComponent(mus)}`);
-            const data = await res.json();
-            
+            const data = await apiFetch(`/buscar_manual?artista=${encodeURIComponent(art)}&musica=${encodeURIComponent(mus)}`);
             if(data.status === "sucesso") {
                 preencherLista(data.letra_completa);
                 elListaLetra.style.display = 'block';
@@ -166,8 +246,7 @@ if (window.frontLineLyricsInjetado) {
     btnSinc.onclick = async () => {
         if (elListaLetra.style.display === 'block') { elListaLetra.style.display = 'none'; return; }
         try {
-            const res = await fetch(`${SERVER_URL}/letra_completa`);
-            const data = await res.json();
+            const data = await apiFetch('/letra_completa');
             if(data.status === "sucesso") {
                 preencherLista(data.letra);
                 elListaLetra.style.display = 'block';
@@ -184,7 +263,7 @@ if (window.frontLineLyricsInjetado) {
             d.className = 'lsp-linha-clicavel';
             d.innerText = item.letra;
             d.onclick = () => {
-                fetch(`${SERVER_URL}/sincronizar_manual?tempo=${item.tempo}`);
+                apiFetch(`/sincronizar_manual?tempo=${item.tempo}`);
                 elListaLetra.style.display = 'none';
             };
             elListaLetra.appendChild(d);
@@ -196,26 +275,6 @@ if (window.frontLineLyricsInjetado) {
             painel.style.display = painel.style.display === 'none' ? 'block' : 'none';
         }
     });
-
-    const overlay = document.createElement('div');
-    overlay.id = "lsp-overlay";
-
-    overlay.style.cssText = `
-        position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
-        z-index: 2147483646; background: rgba(0,0,0,0.85); color: white;
-        border-radius: 10px; text-align: center;
-        cursor: grab; user-select: none;
-        
-        width: 450px; 
-        height: 160px; 
-        
-        resize: both; 
-        overflow: hidden; 
-        
-        display: flex; flex-direction: column; justify-content: center; align-items: center;
-        padding: 10px;
-    `;
-    document.body.appendChild(overlay);
 
     let isDragging = false, offsetO = [0,0];
     overlay.ondragstart = () => false;
@@ -279,11 +338,12 @@ if (window.frontLineLyricsInjetado) {
     let loopId;
 
     async function mainLoop() {
-        try {
-            const res = await fetch(`${SERVER_URL}/status`);
-            const data = await res.json();
+        if (document.hidden) return;
 
-            elStatusIcon.style.color = "#557a46"; // Verde sóbrio
+        try {
+            const data = await apiFetch('/status');
+
+            elStatusIcon.style.color = "#557a46"; 
             btnReconectar.style.display = "none";
 
             if(data.escutando) {
@@ -291,7 +351,6 @@ if (window.frontLineLyricsInjetado) {
                 elMusica.style.color = "#fff"; 
                 elArtista.innerText = data.artista || "---";
                 
-                // Só atualiza o elStatus se a mensagem do servidor não for o aviso padrão
                 if (data.status_msg !== "Alt + M para ocultar" || elStatus.innerText !== "Letra não encontrada!") {
                      elStatus.innerText = data.status_msg;
                 }
@@ -306,7 +365,7 @@ if (window.frontLineLyricsInjetado) {
                 btnSinc.style.display = "none";
             }
         } catch (e) {
-            elStatusIcon.style.color = "#8b4545"; // Vermelho sóbrio
+            elStatusIcon.style.color = "#8b4545"; 
             btnReconectar.style.display = "block";
             
             elMusica.innerText = "Servidor Offline";
@@ -321,7 +380,7 @@ if (window.frontLineLyricsInjetado) {
     }
 
     btnReconectar.onclick = () => {
-        elStatusIcon.style.color = "#a08d4c"; // Amarelo sóbrio
+        elStatusIcon.style.color = "#a08d4c"; 
         btnReconectar.style.display = "none";
         elMusica.innerText = "Conectando...";
         elMusica.style.color = "#888";
@@ -336,16 +395,12 @@ if (window.frontLineLyricsInjetado) {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === "desligar") {
             clearInterval(loopId); 
-            document.getElementById('lsp-panel-container')?.remove(); 
-            document.getElementById('lsp-overlay')?.remove(); 
-            window.frontLineLyricsInjetado = false; 
+            host.remove(); 
         }
     });
 
-    document.getElementById('lsp-fechar-extensao').onclick = () => {
+    shadow.getElementById('lsp-fechar-extensao').onclick = () => {
         clearInterval(loopId); 
-        document.getElementById('lsp-panel-container')?.remove(); 
-        document.getElementById('lsp-overlay')?.remove(); 
-        window.frontLineLyricsInjetado = false;
+        host.remove(); 
     };
 }
