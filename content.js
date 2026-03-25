@@ -1,4 +1,3 @@
-
 if (window.frontLineLyricsInjetado) {
     console.log("FrontLine Lyrics já está rodando nesta aba.");
 } else {
@@ -36,7 +35,7 @@ if (window.frontLineLyricsInjetado) {
             }
             #lsp-panel-container button:hover { background: #3d3d3d; border-color: #555; }
             
-            #lsp-btnSelecionarLinha { background: #4a90e2 !important; color: white !important; border-color: #4a90e2 !important; display: none; width: 100%; margin-top: 8px; }
+            #lsp-btnSelecionarLinha { background: #4a91e221 !important; color: white !important; border-color: #4a90e2 !important; display: none; width: 100%; margin-top: 8px; }
             
             #lsp-painelManual { border-top: 1px solid #444; padding-top: 10px; display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
             #lsp-painelManual input { background: #111; border: 1px solid #444; color: #e0e0e0; padding: 8px; border-radius: 4px; font-size: 13px; outline: none; }
@@ -46,12 +45,42 @@ if (window.frontLineLyricsInjetado) {
             .lsp-linha-clicavel { padding: 6px; cursor: pointer; color: #888; border-bottom: 1px solid #222; }
             .lsp-linha-clicavel:hover { background: #222; color: #fff; }
             
-            #lsp-status { font-size: 10px; color: #666; text-align: center; margin-top: 10px; }
+            #lsp-status { font-size: 10px; color: #ffffff; text-align: center; margin-top: 10px; }
+
+            .lsp-btn-fechar {
+                background: none !important;
+                border: none !important;
+                color: #888 !important;
+                font-size: 18px !important;
+                cursor: pointer;
+                padding: 0 5px !important;
+                line-height: 1;
+                transition: color 0.2s;
+            }
+            .lsp-btn-fechar:hover {
+                color: #ff4d4d !important;
+            }
+            
+            #lsp-btnReconectar {
+                background: #e74c3c !important; 
+                color: white !important; 
+                border: none !important; 
+                padding: 4px 8px !important; 
+                border-radius: 4px !important; 
+                font-size: 10px !important; 
+                cursor: pointer !important;
+                display: none;
+            }
+            #lsp-btnReconectar:hover { background: #c0392b !important; }
         </style>
         
         <div class="lsp-header" id="lsp-drag-handle">
             <h2>FrontLine Lyrics</h2>
-            <div id="lsp-status-icon" style="color: #555;">●</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button id="lsp-btnReconectar">Tentar Novamente</button>
+                <div id="lsp-status-icon" style="color: #f1c40f; font-size: 14px;">●</div>
+                <button id="lsp-fechar-extensao" class="lsp-btn-fechar" title="Encerrar extensão">&times;</button>
+            </div>
         </div>
 
         <div class="lsp-music-info">
@@ -62,7 +91,7 @@ if (window.frontLineLyricsInjetado) {
         <div class="lsp-controls-row">
             <button id="lsp-btnIniciar">Ouvir</button>
             <button id="lsp-btnParar">Parar</button>
-            <button id="lsp-btnManual">Letra</button>
+            <button id="lsp-btnManual">Buscar Letra</button>
         </div>
 
         <button id="lsp-btnSelecionarLinha">Sincronia Manual</button>
@@ -85,6 +114,7 @@ if (window.frontLineLyricsInjetado) {
     const elArtista = document.getElementById('lsp-artista');
     const elStatus = document.getElementById('lsp-status');
     const elStatusIcon = document.getElementById('lsp-status-icon');
+    const btnReconectar = document.getElementById('lsp-btnReconectar');
     const elPainelManual = document.getElementById('lsp-painelManual');
     const elListaLetra = document.getElementById('lsp-listaLetraCompleta');
     const btnSinc = document.getElementById('lsp-btnSelecionarLinha');
@@ -111,35 +141,52 @@ if (window.frontLineLyricsInjetado) {
     aplicarArraste(painel, document.getElementById('lsp-drag-handle'));
 
     document.getElementById('lsp-btnIniciar').onclick = () => fetch(`${SERVER_URL}/iniciar`);
+    
     document.getElementById('lsp-btnParar').onclick = () => {
         fetch(`${SERVER_URL}/parar`);
         elMusica.innerText = "Parado";
+        elArtista.innerText = "---";
         elListaLetra.style.display = 'none';
+        overlay.style.display = "none"; 
+        btnSinc.style.display = "none";
     };
+
     document.getElementById('lsp-btnManual').onclick = () => {
         elPainelManual.style.display = elPainelManual.style.display === 'none' ? 'flex' : 'none';
     };
 
+    // CORRIGIDO: Tratamento de erro e exibição de dados para a busca manual
     document.getElementById('lsp-btnBuscarManual').onclick = async () => {
         const art = document.getElementById('lsp-iptArtista').value;
         const mus = document.getElementById('lsp-iptMusica').value;
         if(!art || !mus) return;
         elStatus.innerText = "Buscando...";
-        const res = await fetch(`${SERVER_URL}/buscar_manual?artista=${encodeURIComponent(art)}&musica=${encodeURIComponent(mus)}`);
-        const data = await res.json();
-        if(data.status === "sucesso") {
-            preencherLista(data.letra_completa);
-            elStatus.innerText = "Letra carregada!";
+        try {
+            const res = await fetch(`${SERVER_URL}/buscar_manual?artista=${encodeURIComponent(art)}&musica=${encodeURIComponent(mus)}`);
+            const data = await res.json();
+            if(data.status === "sucesso") {
+                preencherLista(data.letra_completa);
+                elStatus.innerText = "Letra carregada!";
+                elListaLetra.style.display = 'block'; // Mostra a lista imediatamente
+            } else {
+                elStatus.innerText = "Letra não encontrada!";
+            }
+        } catch (e) {
+            elStatus.innerText = "Erro de conexão ao buscar.";
         }
     };
 
     btnSinc.onclick = async () => {
         if (elListaLetra.style.display === 'block') { elListaLetra.style.display = 'none'; return; }
-        const res = await fetch(`${SERVER_URL}/letra_completa`);
-        const data = await res.json();
-        if(data.status === "sucesso") {
-            preencherLista(data.letra);
-            elListaLetra.style.display = 'block';
+        try {
+            const res = await fetch(`${SERVER_URL}/letra_completa`);
+            const data = await res.json();
+            if(data.status === "sucesso") {
+                preencherLista(data.letra);
+                elListaLetra.style.display = 'block';
+            }
+        } catch (e) {
+            console.error(e);
         }
     };
 
@@ -172,15 +219,12 @@ if (window.frontLineLyricsInjetado) {
         border-radius: 10px; text-align: center;
         cursor: grab; user-select: none;
         
-        /* Tamanho Fixo Inicial */
         width: 450px; 
         height: 160px; 
         
-        /* Permite Redimensionar */
         resize: both; 
-        overflow: hidden; /* Impede que o conteúdo empurre a borda */
+        overflow: hidden; 
         
-        /* Garante que o conteúdo interno fique centralizado */
         display: flex; flex-direction: column; justify-content: center; align-items: center;
         padding: 10px;
     `;
@@ -232,33 +276,61 @@ if (window.frontLineLyricsInjetado) {
         }
     }
 
+    let loopId;
+
     async function mainLoop() {
         try {
             const res = await fetch(`${SERVER_URL}/status`);
             const data = await res.json();
 
+            // CORRIGIDO: Status visual (Bolinha Verde)
+            elStatusIcon.style.color = "#2ecc71"; // Verde conectado
+            btnReconectar.style.display = "none";
+
             if(data.escutando) {
                 elMusica.innerText = data.musica || "Identificando...";
+                elMusica.style.color = "#fff"; 
                 elArtista.innerText = data.artista || "---";
-                elStatusIcon.style.color = data.musica ? "#4a90e2" : "#f1c40f";
                 elStatus.innerText = data.status_msg;
-                btnSinc.style.display = data.linha_atual ? "block" : "none";
+                
+                btnSinc.style.display = data.musica ? "block" : "none";
                 
                 overlay.style.display = "flex"; 
                 atualizarLetraNoOverlay(data);
             } else {
+                elMusica.innerText = "Aguardando...";
                 overlay.style.display = "none";
-                elStatusIcon.style.color = "#555";
+                btnSinc.style.display = "none";
             }
         } catch (e) {
-            elStatusIcon.style.color = "red";
-            elStatus.innerText = "Servidor Offline";
+            // CORRIGIDO: Status visual de erro (Bolinha Vermelha + Botão Reconectar)
+            elStatusIcon.style.color = "#e74c3c"; // Vermelho
+            btnReconectar.style.display = "block";
+            
+            elMusica.innerText = "Servidor Offline";
+            elMusica.style.color = "#ff4d4d";
+            elArtista.innerText = "---";
+            elStatus.innerText = "Abra o FrontLine Lyrics.exe";
+            overlay.style.display = "none";
+            btnSinc.style.display = "none";
+            
+            clearInterval(loopId); // Para o loop de floodar o console
         }
     }
 
-    setInterval(mainLoop, 500);
+    // CORRIGIDO: Lógica do botão de reconectar
+    btnReconectar.onclick = () => {
+        elStatusIcon.style.color = "#f1c40f"; // Amarelo (Tentando)
+        btnReconectar.style.display = "none";
+        elMusica.innerText = "Conectando...";
+        elMusica.style.color = "#f1c40f";
+        
+        mainLoop(); // Força uma checagem imediata
+        clearInterval(loopId); // Garante que não duplica
+        loopId = setInterval(mainLoop, 500); // Retoma o loop
+    };
 
-    let loopId = setInterval(mainLoop, 500);
+    loopId = setInterval(mainLoop, 500);
 
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === "desligar") {
@@ -270,4 +342,13 @@ if (window.frontLineLyricsInjetado) {
             window.frontLineLyricsInjetado = false; 
         }
     });
+
+    document.getElementById('lsp-fechar-extensao').onclick = () => {
+        clearInterval(loopId); 
+
+        document.getElementById('lsp-panel-container')?.remove(); 
+        document.getElementById('lsp-overlay')?.remove(); 
+        
+        window.frontLineLyricsInjetado = false;
+    };
 }

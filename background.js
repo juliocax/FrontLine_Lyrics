@@ -9,7 +9,8 @@ chrome.action.onClicked.addListener(async (tab) => {
     if (abasAtivas.has(tab.id)) {
         chrome.tabs.sendMessage(tab.id, { action: "desligar" });
         abasAtivas.delete(tab.id);
-    } 
+    }
+    
     else {
         try {
             await chrome.scripting.executeScript({
