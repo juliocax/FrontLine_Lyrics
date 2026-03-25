@@ -38,6 +38,57 @@ This project is split into a local Python server and a Chromium-based browser ex
 
 ---
 
+### Visual Guide & Key Features
+
+We've prepared a visual walk-through of how our lyric synchronization tool works, from initial song recognition to manual adjustments.
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="assets/Identifying.png" alt="Identifying a song from a live concert" width="400"/>
+      <br/>
+      <b>1. Identifying a song from a live concert</b>
+      <p>The app is listening and identifying the music from a live performance.</p>
+    </td>
+    <td align="center">
+      <img src="assets/lyrics.png" alt="Song identified and lyrics synchronized" width="400"/>
+      <br/>
+      <b>2. Song identified and lyrics synchronized</b>
+      <p>The song is successfully identified, and the lyrics are in sync.</p>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="assets/Hide.png" alt="Customizable UI: Hide console and modify lyric position/format" width="400"/>
+      <br/>
+      <b>3. Customizable UI: Hide console and modify position/format</b>
+      <p>You can hide the console and adjust the position and formatting of the lyrics.</p>
+    </td>
+    <td align="center">
+      <img src="assets/Manual.png" alt="Manual lyric search feature when audio identification fails" width="400"/>
+      <br/>
+      <b>4. Manual lyric search for poor audio quality</b>
+      <p>If the sound quality is poor and identification fails, you can manually search for the lyrics.</p>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="assets/jump.png" alt="Manual re-syncing: Instantly jump to the next lyric line" width="400"/>
+      <br/>
+      <b>5. Manual re-syncing: Manually jump to the next lyric line</b>
+      <p>Tell the app what the next line is, and it will automatically re-sync.</p>
+    </td>
+    <td align="center">
+      <img src="assets/synchronized.png" alt="Lyrics synchronized after manual adjustment" width="400"/>
+      <br/>
+      <b>6. Lyrics synchronized after manual adjustment</b>
+      <p>The lyrics are back in perfect sync after a manual adjustment.</p>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Installation & Usage Guide
 
 Because this is an independent, open-source project, the installation process requires a few manual steps.
