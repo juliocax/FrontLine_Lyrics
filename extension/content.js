@@ -47,6 +47,15 @@ if (document.getElementById('frontline-lyrics-root')) {
             }
             #lsp-panel-container button:hover { background: #3d3d3d; border-color: #555; }
             
+            #lsp-panel-container select {
+                flex: 1; background: #2d2d2d; color: #e0e0e0; border: 1px solid #444; 
+                padding: 8px; cursor: pointer; border-radius: 4px; font-size: 11px; 
+                font-weight: bold; text-transform: uppercase; transition: 0.2s;
+                outline: none; appearance: none; text-align: center;
+            }
+            #lsp-panel-container select:hover { background: #3d3d3d; border-color: #555; }
+            #lsp-panel-container select:disabled { opacity: 0.5; cursor: not-allowed; }
+            
             #lsp-btnSelecionarLinha { display: none; width: 100%; margin-top: 8px; }
             
             #lsp-painelManual { border-top: 1px solid #444; padding-top: 10px; display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
@@ -69,7 +78,6 @@ if (document.getElementById('frontline-lyrics-root')) {
             
             #lsp-btnReconectar { display: none; padding: 4px 8px !important; font-size: 10px !important; margin-right: 5px; }
 
-            /* Estilos do Modal de Privacidade */
             #lsp-privacy-modal {
                 display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
                 background: rgba(26, 26, 26, 0.95); z-index: 100; border-radius: 8px;
@@ -114,6 +122,15 @@ if (document.getElementById('frontline-lyrics-root')) {
         <div class="lsp-controls-row">
             <button id="lsp-btnIniciar">Listen</button>
             <button id="lsp-btnPausar" style="display: none;">Pause</button>
+            
+            <select id="lsp-selIdioma" style="display: none;" title="Choose Language">
+                <option value="original">Original</option>
+                <option value="pt">Pt-Br</option>
+                <option value="es">Español</option>
+                <option value="en">English</option>
+                <option value="fr">Français</option>
+            </select>
+
             <button id="lsp-btnParar">Stop</button>
             <button id="lsp-btnManual">Search</button>
         </div>
@@ -159,6 +176,7 @@ if (document.getElementById('frontline-lyrics-root')) {
     const elListaLetra = shadow.getElementById('lsp-listaLetraCompleta');
     const btnSinc = shadow.getElementById('lsp-btnSelecionarLinha');
     const btnPausar = shadow.getElementById('lsp-btnPausar');
+    const selIdioma = shadow.getElementById('lsp-selIdioma'); 
     const overlay = shadow.getElementById('lsp-overlay');
     
     const privacyModal = shadow.getElementById('lsp-privacy-modal');
@@ -218,12 +236,25 @@ if (document.getElementById('frontline-lyrics-root')) {
         elStatus.innerText = "Alt + M to hide";
         elListaLetra.style.display = 'none';
         btnPausar.style.display = 'none';
+        selIdioma.style.display = 'none';
         overlay.style.display = "none"; 
         btnSinc.style.display = "none";
     };
     
     btnPausar.onclick = () => {
         apiFetch('/toggle_pause');
+    };
+
+    selIdioma.onchange = async () => {
+        const lang = selIdioma.value;
+        selIdioma.disabled = true; 
+        try {
+            await apiFetch(`/mudar_idioma?lang=${lang}`);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            selIdioma.disabled = false;
+        }
     };
 
     shadow.getElementById('lsp-btnManual').onclick = () => {
@@ -360,9 +391,10 @@ if (document.getElementById('frontline-lyrics-root')) {
                 elMusica.innerText = data.musica || "Identifying...";
                 elMusica.style.color = "#fff"; 
                 elArtista.innerText = data.artista || "---";
-                
-                if (data.status_msg !== "Alt + M to hide" || elStatus.innerText !== "Lyrics not found!") {
-                     elStatus.innerText = data.status_msg;
+
+                const mensagensTemporarias = ["Searching...", "Lyrics not found!", "Connection error while searching."];
+                if (!mensagensTemporarias.includes(elStatus.innerText)) {
+                    elStatus.innerText = data.status_msg;
                 }
                 
                 btnSinc.style.display = data.musica && data.letra_encontrada ? "block" : "none";
@@ -372,8 +404,14 @@ if (document.getElementById('frontline-lyrics-root')) {
                     btnPausar.innerText = data.pausado ? "Play" : "Pause";
                     btnPausar.style.backgroundColor = data.pausado ? "#a08d4c" : "#2d2d2d";
                     btnPausar.style.color = data.pausado ? "#111" : "#e0e0e0";
+                    
+                    selIdioma.style.display = "block";
+                    if (!selIdioma.disabled && selIdioma.value !== data.idioma) {
+                        selIdioma.value = data.idioma;
+                    }
                 } else {
                     btnPausar.style.display = "none";
+                    selIdioma.style.display = "none";
                 }
                 
                 overlay.style.display = "flex"; 
@@ -382,6 +420,7 @@ if (document.getElementById('frontline-lyrics-root')) {
                 elMusica.innerText = "No song...";
                 elStatus.innerText = "Alt + M to hide";
                 btnPausar.style.display = "none";
+                selIdioma.style.display = "none";
                 overlay.style.display = "none";
                 btnSinc.style.display = "none";
             }
@@ -394,6 +433,7 @@ if (document.getElementById('frontline-lyrics-root')) {
             elArtista.innerText = "---";
             elStatus.innerText = "Open FrontLine Lyrics.exe";
             btnPausar.style.display = "none";
+            selIdioma.style.display = "none";
             overlay.style.display = "none";
             btnSinc.style.display = "none";
             

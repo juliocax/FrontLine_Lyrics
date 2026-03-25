@@ -11,7 +11,9 @@ import os
 from flask import Flask, jsonify, request
 from shazamio import Shazam
 import pystray
-from PIL import Image
+from PIL import Image, ImageTk, ImageEnhance
+from deep_translator import GoogleTranslator
+import tkinter as tk
 
 NORMAL_INTERVAL = 2           
 
@@ -110,7 +112,12 @@ class MusicManager:
         self.artista_atual = None
         self.musica_atual = None
         self.tempo_referencia_sistema = 0.0 
+        
+        self.letra_original = []
+        self.traducoes_cacheadas = {} 
+        self.idioma_atual = "original"
         self.letra_sincronizada = []
+        
         self.delay_manual = 0.0 
         self.escutando = False   
         self.busca_concluida = False 
@@ -205,6 +212,30 @@ class MusicManager:
         log("Todas as tentativas de buscar a letra falharam.", "WARNING")
         return None
 
+    def gerar_traducao(self, idioma_alvo):
+        if not self.letra_original: return False
+        if idioma_alvo in self.traducoes_cacheadas: 
+            return True 
+            
+        try:
+            log(f"Traduzindo letra para: {idioma_alvo.upper()}", "LOGIC")
+            textos = [item['letra'] for item in self.letra_original]
+            texto_completo = "\n".join(textos)
+            
+            texto_traduzido = GoogleTranslator(source='auto', target=idioma_alvo).translate(texto_completo)
+            textos_separados = texto_traduzido.split('\n')
+            
+            linhas_traduzidas = []
+            for i, item in enumerate(self.letra_original):
+                letra_trad = textos_separados[i] if i < len(textos_separados) else item['letra']
+                linhas_traduzidas.append({"tempo": item['tempo'], "letra": letra_trad})
+                
+            self.traducoes_cacheadas[idioma_alvo] = linhas_traduzidas
+            return True
+        except Exception as e:
+            log(f"Erro na tradução para {idioma_alvo}: {e}", "ERROR")
+            return False
+
 manager = MusicManager()
 
 @app.route('/status', methods=['GET'])
@@ -236,7 +267,8 @@ def get_status():
         "status_msg": manager.status_busca,
         "busca_concluida": manager.busca_concluida,
         "letra_encontrada": len(manager.letra_sincronizada) > 0,
-        "pausado": manager.letra_pausada
+        "pausado": manager.letra_pausada,
+        "idioma": manager.idioma_atual 
     })
 
 @app.route('/iniciar', methods=['GET'])
@@ -265,6 +297,26 @@ def toggle_pause():
         manager.momento_pausa = time.time()
         
     return jsonify({"status": "sucesso", "pausado": manager.letra_pausada})
+
+@app.route('/mudar_idioma', methods=['GET'])
+def mudar_idioma():
+    lang = request.args.get('lang', 'original')
+    
+    if not manager.letra_original:
+        return jsonify({"status": "erro", "mensagem": "No lyrics loaded"})
+        
+    if lang == "original":
+        manager.letra_sincronizada = manager.letra_original
+        manager.idioma_atual = "original"
+    else:
+        sucesso = manager.gerar_traducao(lang)
+        if sucesso:
+            manager.letra_sincronizada = manager.traducoes_cacheadas[lang]
+            manager.idioma_atual = lang
+        else:
+            return jsonify({"status": "erro", "mensagem": "Translation failed"})
+            
+    return jsonify({"status": "sucesso", "idioma": manager.idioma_atual})
 
 @app.route('/letra_completa', methods=['GET'])
 def get_letra_completa():
@@ -298,7 +350,11 @@ def buscar_manual():
     manager.busca_concluida = True
     
     if letra:
+        manager.letra_original = letra
         manager.letra_sincronizada = letra
+        manager.traducoes_cacheadas = {} 
+        manager.idioma_atual = "original"
+        
         manager.musica_atual = musica
         manager.artista_atual = artista
         manager.escutando = True  
@@ -353,7 +409,10 @@ async def async_worker_verificacao(manager):
             manager.status_busca = "Alt + M to hide"
             
             if letra:
+                manager.letra_original = letra
                 manager.letra_sincronizada = letra
+                manager.traducoes_cacheadas = {} 
+                manager.idioma_atual = "original"
                 manager.tempo_referencia_sistema = t_inicio_gravacao - offset_shazam
             else:
                 pass
@@ -401,10 +460,67 @@ def iniciar_bandeja():
     icone = pystray.Icon("FrontLineLyrics", criar_icone(), "FrontLine Lyrics (Server)", menu)
     icone.run()
 
+# --- NOVA JANELA DE AVISO COM IMAGEM DE FUNDO ---
+def mostrar_aviso_servidor():
+    root = tk.Tk()
+    root.overrideredirect(True) 
+    root.attributes('-topmost', True) 
+    
+    largura = 450
+    altura = 220
+    tela_largura = root.winfo_screenwidth()
+    tela_altura = root.winfo_screenheight()
+    x = (tela_largura // 2) - (largura // 2)
+    y = (tela_altura // 2) - (altura // 2)
+    
+    root.geometry(f"{largura}x{altura}+{x}+{y}")
+    
+    canvas = tk.Canvas(root, width=largura, height=altura, highlightthickness=0)
+    canvas.pack(fill="both", expand=True)
+    
+    try:
+        caminho_img = resource_path("../assets/promo.png")
+        img_original = Image.open(caminho_img)
+        img_redimensionada = img_original.resize((largura, altura), Image.Resampling.LANCZOS)
+        
+        enhancer = ImageEnhance.Brightness(img_redimensionada)
+        img_escura = enhancer.enhance(0.4)
+        
+        bg_image = ImageTk.PhotoImage(img_escura)
+        canvas.create_image(0, 0, image=bg_image, anchor="nw")
+        canvas.image = bg_image 
+    except Exception as e:
+        canvas.configure(bg='#1a1a1a')
+        log(f"Imagem de fundo não encontrada ou erro: {e}", "WARNING")
+
+    canvas.create_text(
+        largura // 2, (altura // 2) - 30,
+        text="FrontLine Lyrics Server is Active!",
+        fill="#ffffff", font=("Segoe UI", 14, "bold"), justify="center"
+    )
+    
+    canvas.create_text(
+        largura // 2, (altura // 2),
+        text="The engine is running quietly in your system tray.",
+        fill="#a0a0a0", font=("Segoe UI", 10), justify="center"
+    )
+    
+    btn_ok = tk.Button(
+        root, text="Got it!", command=root.destroy,
+        bg="#a0a0a0", fg="#111", font=("Segoe UI", 10, "bold"),
+        relief="flat", padx=20, pady=4, cursor="hand2",
+        activebackground="#5a5a5a"
+    )
+    canvas.create_window(largura // 2, (altura // 2) + 50, window=btn_ok)
+    
+    root.mainloop()
+
 if __name__ == "__main__":
     import logging
     log_flask = logging.getLogger('werkzeug')
     log_flask.disabled = True
+    
+    threading.Thread(target=mostrar_aviso_servidor, daemon=True).start()
     
     threading.Thread(target=lambda: app.run(port=5000, debug=False, use_reloader=False), daemon=True).start()
     threading.Thread(target=start_background_loop, args=(manager,), daemon=True).start()

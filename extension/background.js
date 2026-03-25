@@ -7,7 +7,8 @@ const rotasPermitidas = [
     '/letra_completa', 
     '/sincronizar_manual', 
     '/buscar_manual',
-    '/toggle_pause'
+    '/toggle_pause',
+    '/mudar_idioma' 
 ];
 
 chrome.action.onClicked.addListener(async (tab) => {
