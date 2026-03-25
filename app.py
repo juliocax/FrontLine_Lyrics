@@ -21,7 +21,6 @@ app = Flask(__name__)
 CORS(app)
 
 def resource_path(relative_path):
-    """ Obtém o caminho absoluto para recursos, funciona em dev e no PyInstaller """
     try:
         base_path = sys._MEIPASS
     except Exception:
@@ -96,7 +95,7 @@ class MusicManager:
         self.delay_manual = 0.0 
         self.escutando = False   
         self.busca_concluida = False 
-        self.status_busca = "Aguardando comando..." 
+        self.status_busca = "Alt + M para ocultar" 
 
     async def reconhecer_snippet(self, audio_bytes):
         try:
@@ -129,7 +128,11 @@ class MusicManager:
             if r.status_code == 200:
                 dados = r.json()
                 if dados.get("syncedLyrics"):
-                    return extrair_linhas(dados["syncedLyrics"])
+                    linhas = extrair_linhas(dados["syncedLyrics"])
+                    if linhas:
+                        # Adiciona a marcação "End" 5 segundos após a última frase
+                        linhas.append({"tempo": linhas[-1]["tempo"] + 5.0, "letra": "End"})
+                    return linhas
         except Exception as e:
             log(f"Erro na busca LRCLib: {e}", "ERRO")
         return None
@@ -162,7 +165,9 @@ def get_status():
         "linha_atual": linha_atual,
         "linha_anterior": linha_anterior,
         "linha_futura": linha_futura,
-        "status_msg": manager.status_busca
+        "status_msg": manager.status_busca,
+        "busca_concluida": manager.busca_concluida,
+        "letra_encontrada": len(manager.letra_sincronizada) > 0
     })
 
 @app.route('/iniciar', methods=['GET'])
@@ -188,7 +193,6 @@ def get_letra_completa():
 
 @app.route('/sincronizar_manual', methods=['GET'])
 def sincronizar_manual():
-
     tempo = request.args.get('tempo', type=float)
     if tempo is not None:
         manager.tempo_referencia_sistema = time.time() - tempo
@@ -205,17 +209,19 @@ def buscar_manual():
         return jsonify({"status": "erro", "mensagem": "Faltam parâmetros"}), 400
         
     letra = manager.buscar_letra_lrclib(artista, musica)
+    manager.busca_concluida = True
     
     if letra:
         manager.letra_sincronizada = letra
         manager.musica_atual = musica
         manager.artista_atual = artista
-        manager.escutando = True  # Para ativar o painel
+        manager.escutando = True  
         manager.tempo_referencia_sistema = time.time()
         manager.delay_manual = 0.0
-        manager.status_busca = "Letra manual carregada"
+        manager.status_busca = "Alt + M para ocultar"
         return jsonify({"status": "sucesso", "letra_completa": letra})
     else:
+        manager.status_busca = "Alt + M para ocultar"
         return jsonify({"status": "erro", "mensagem": "Letra não encontrada"}), 404
 
 async def async_worker_verificacao(manager):
@@ -246,15 +252,15 @@ async def async_worker_verificacao(manager):
             manager.status_busca = "Buscando letra..."
             
             letra = await loop.run_in_executor(None, manager.buscar_letra_lrclib, novo_artista, nova_musica)
+            manager.busca_concluida = True
+            manager.status_busca = "Alt + M para ocultar"
             
             if letra:
                 manager.letra_sincronizada = letra
                 manager.tempo_referencia_sistema = t_inicio_gravacao - offset_shazam
-                manager.busca_concluida = True
-                # manager.status_busca = "Sincronizado"
             else:
-                manager.status_busca = "Letra não encontrada."
-                manager.busca_concluida = True
+                # Se não encontrar, o status volta ao padrão e o front-end exibe a mensagem no overlay
+                pass
         
         await asyncio.sleep(NORMAL_INTERVAL)
 
@@ -294,4 +300,3 @@ if __name__ == "__main__":
     log("Servidor rodando em segundo plano. Verifique o ícone na bandeja.")
 
     iniciar_bandeja()
-
