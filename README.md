@@ -113,7 +113,7 @@ FrontLine Lyrics comes in two parts that talk to each other:
 2. **The Browser Extension**: The visual panel you interact with inside Chrome/Edge, which displays the lyrics in sync.
 
 ### Part 1: Installing the Server
-1. **Download the Server File**: Download the `FrontLineLyrics.exe` file from the latest Release page.
+1. **Download the zipped folder**: Download the `FrontLine_Lyrics.zip` file from the latest [releases page](https://github.com/juliocax/FrontLine_Lyrics/releases/tag/v0.0.1). And unzip the folder to a safe place on your computer (like your Documents folder).
 2. **Run the Application**: Double-click the `.exe` file to start it.
 3. **Handle Windows Defender (Important)**:
    * Because this app is new and created by an independent developer, Windows SmartScreen will likely flag it and say "Windows protected your PC."
@@ -124,14 +124,13 @@ FrontLine Lyrics comes in two parts that talk to each other:
 ### Part 2: Installing the Browser Extension
 Since the extension isn't on the official Chrome Web Store yet, you need to load it manually. It works on Google Chrome, Microsoft Edge, Brave, and other Chromium-based browsers.
 
-1. **Download and Extract**: Download the extension `.zip` file from the Release page. Extract (unzip) the folder to a safe place on your computer (like your Documents folder).
-2. **Open Extension Settings**:
+1. **Open Extension Settings**:
    * **Chrome**: Type `chrome://extensions/` in your address bar and press Enter.
    * **Edge**: Type `edge://extensions/` in your address bar and press Enter.
-3. **Enable Developer Mode**: Look for a toggle switch called "Developer mode" (usually in the top right corner) and turn it **ON**.
-4. **Load the Extension**:
+2. **Enable Developer Mode**: Look for a toggle switch called "Developer mode" (usually in the top right corner) and turn it **ON**.
+3. **Load the Extension**:
    * Click the new button that appears called **"Load unpacked"**.
-   * Select the folder you extracted in Step 1.
+   * Select the folder you `extension`.
    * The FrontLine Lyrics icon will now appear in your browser's extension list! *Tip: Click the "puzzle piece" icon in your browser and "Pin" FrontLine Lyrics for easy access.*
 
 ### Part 3: How to Use FrontLine Lyrics
