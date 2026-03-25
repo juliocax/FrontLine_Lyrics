@@ -12,8 +12,8 @@
   ],
   "action": {
     "default_icon": {
-      "16": "assets/logo16.png",
-      "32": "assets/logo32.png"
+      "16": "icons/logo16.png",
+      "32": "icons/logo32.png"
     },
     "default_title": "Toggle FrontLine Lyrics"
   },
@@ -21,8 +21,8 @@
     "service_worker": "background.js"
   },
   "icons": {
-    "16": "assets/logo16.png",
-    "48": "assets/logo48.png",
-    "128": "assets/logo128.png"
+    "16": "icons/logo16.png",
+    "48": "icons/logo48.png",
+    "128": "icons/logo128.png"
   }
 }
