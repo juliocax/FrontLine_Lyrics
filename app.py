@@ -240,7 +240,7 @@ def start_background_loop(porta):
     loop.run_until_complete(main_background(manager, porta))
 
 # ==========================================
-# PAINEL DE CONTROLE (DEEP STAGE / GLASS UI)
+# DEEP STAGE / GLASS UI
 # ==========================================
 STYLESHEET = """
 QWidget#Main { 
@@ -315,7 +315,7 @@ class ControlWindow(QWidget):
         self.setStyleSheet(STYLESHEET)
         
         # Trava o tamanho da janela
-        self.setFixedSize(320, 560) 
+        self.setFixedSize(320, 600) 
         
         caminho_ico = self.obter_caminho_asset("logo.ico")
         if os.path.exists(caminho_ico): 
@@ -341,7 +341,6 @@ class ControlWindow(QWidget):
         capa_layout.addStretch(); capa_layout.addWidget(self.lbl_capa); capa_layout.addStretch()
         header_layout.addLayout(capa_layout)
 
-        # Força a logo a aparecer logo na inicialização
         self.atualizar_capa_ui(None)
 
         self.lbl_musica = QLabel("Deck Ready")
@@ -487,7 +486,6 @@ class ControlWindow(QWidget):
         self.iniciar_subprocesso_overlay()
         self.timer = QTimer(); self.timer.timeout.connect(self.update_ui_loop); self.timer.start(500)
 
-    # --- FUNÇÕES UTILITÁRIAS ---
     def obter_caminho_asset(self, filename, subpasta="assets"):
         if getattr(sys, 'frozen', False):
             base_dir = os.path.dirname(sys.executable)
@@ -509,7 +507,7 @@ class ControlWindow(QWidget):
         pix = QPixmap()
         if not image_bytes: 
             # Sem capa detectada: tenta carregar a logo padrão da pasta icons
-            caminho_logo = self.obter_caminho_asset("logo128.png", subpasta="icons")
+            caminho_logo = self.obter_caminho_asset("logocapa.png", subpasta="icons")
             if os.path.exists(caminho_logo):
                 pix.load(caminho_logo)
             else:
@@ -525,7 +523,6 @@ class ControlWindow(QWidget):
         btn.style().unpolish(btn)
         btn.style().polish(btn)
 
-    # --- LÓGICA DE UI ---
     def action_start_listen(self):
         self.manager.reset_state()
         self.manager.escutando = True
@@ -544,11 +541,9 @@ class ControlWindow(QWidget):
             QTimer.singleShot(3000, self.action_start_listen)
 
     def action_toggle_search_mode(self, checked):
-        # Esconde/Mostra título e artista para dar espaço à pesquisa
         self.lbl_musica.setVisible(not checked)
         self.lbl_artista.setVisible(not checked)
         
-        # Oculta botão de pause e mostra inputs
         self.search_container.setVisible(checked)
         self.btn_pause.setVisible(not checked)
         self.btn_exec_search.setVisible(checked)
@@ -561,7 +556,7 @@ class ControlWindow(QWidget):
         self.ultima_musica_traduzida = None
         self.lbl_musica.setText("Deck Ready")
         self.lbl_artista.setText("Press Listen to start")
-        self.atualizar_capa_ui(None) # Volta para a logo padrão
+        self.atualizar_capa_ui(None)
         self.ipt_artista.clear()
         self.ipt_musica.clear()
         self.cb_lang.setCurrentIndex(0)
@@ -587,14 +582,13 @@ class ControlWindow(QWidget):
         art, mus = self.ipt_artista.text(), self.ipt_musica.text()
         if not art or not mus: return
         
-        # Desmarca o botão, o que automaticamente esconde a busca e revela os textos
         self.btn_manual_search.setChecked(False) 
         self.manager.reset_state()
         self.ultima_musica_traduzida = None
         
         self.lbl_musica.setText("Searching...")
         self.lbl_artista.setText("Fetching lyrics online...")
-        self.atualizar_capa_ui(None) # Mantém/Força a logo padrão enquanto busca/toca
+        self.atualizar_capa_ui(None) 
         
         def worker():
             letra = self.manager.buscar_letra_lrclib(art, mus)
