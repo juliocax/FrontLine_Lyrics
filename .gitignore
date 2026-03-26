@@ -1,4 +1,5 @@
 *.spec
-/server/dist
-/server/build
-/server/.venv
+/dist
+/build
+/.venv
+/.vs
