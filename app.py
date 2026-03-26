@@ -51,7 +51,7 @@ class MusicManager:
         self.overlay_font_size = 26
         self.modo_fantasma = False
         self.auto_sync_ativado = False
-        self.inicio_escuta = 0.0 # <-- ADD: Rastreador de tempo para as mensagens divertidas
+        self.inicio_escuta = 0.0
         self.reset_state()
 
     def _configurar_loopback(self):
@@ -93,7 +93,7 @@ class MusicManager:
         self.escutando, self.busca_concluida, self.letra_pausada = False, False, False
         self.status_busca = "Ready. Click Listen."
         self.momento_pausa = 0.0
-        self.inicio_escuta = time.time() # Reseta o relógio
+        self.inicio_escuta = time.time()
         ui_signals.update_cover.emit(b'')
 
     async def reconhecer_snippet(self, audio_bytes):
@@ -260,7 +260,6 @@ QFrame#CompactCard {
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
-/* Removido o font-size fixo daqui para permitir diminuição dinâmica via código */
 QLabel#SongTitle { font-weight: bold; color: white; }
 QLabel#ArtistName { color: #d1a3ff; font-weight: bold; }
 QLabel#MiniLabel { color: #aaaaaa; font-size: 10px; }
@@ -288,6 +287,7 @@ QPushButton#BtnManual:checked {
 /* Play/Pause e Search Execute dentro do deck */
 QPushButton#BtnDeckAction { background-color: rgba(255, 255, 255, 0.15); border-radius: 15px; padding: 5px; font-size: 14px; }
 QPushButton#BtnDeckAction:hover { background-color: rgba(255, 255, 255, 0.25); }
+QPushButton#BtnDeckAction:checked { background-color: #a955ff; color: white; }
 
 QLineEdit, QComboBox { 
     background-color: rgba(0, 0, 0, 0.3); 
@@ -303,8 +303,39 @@ QComboBox#LangCombo { max-width: 80px; }
 QCheckBox { color: white; font-size: 11px; font-weight: bold; }
 QCheckBox::indicator { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.3); background-color: rgba(0,0,0,0.3); }
 QCheckBox::indicator:checked { background-color: #a955ff; }
-"""
 
+/* Lista de Letras Manual Sync */
+QListWidget#LyricsList {
+    background-color: rgba(0, 0, 0, 0.75);
+    border-radius: 12px;
+    padding: 5px;
+    color: white;
+    font-size: 10px;
+    border: 1px solid rgba(90,90,90,0.1);
+}
+QListWidget#LyricsList::item {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+QListWidget#LyricsList::item:hover {
+    background-color: rgba(169, 85, 255, 0.5);
+    border-radius: 6px;
+}
+/* Scrollbar da lista */
+QScrollBar:vertical {
+    border: none;
+    background: rgba(0,0,0,0.2);
+    width: 6px;
+    border-radius: 3px;
+}
+QScrollBar::handle:vertical {
+    background: rgba(255,255,255,0.3);
+    border-radius: 3px;
+}
+QScrollBar::handle:vertical:hover {
+    background: rgba(169, 85, 255, 0.8);
+}
+"""
 class ControlWindow(QWidget):
     def __init__(self, manager, porta_servidor):
         super().__init__()
@@ -336,11 +367,21 @@ class ControlWindow(QWidget):
         header_layout.setContentsMargins(5, 10, 5, 10)
         header_layout.setSpacing(8)
         
+        # Capa e Lista (se sobrepõem)
         self.lbl_capa = QLabel("")
         self.lbl_capa.setFixedSize(260, 260) 
         self.lbl_capa.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.list_lyrics = QListWidget()
+        self.list_lyrics.setObjectName("LyricsList")
+        self.list_lyrics.setFixedSize(260, 260)
+        self.list_lyrics.hide()
+        
         capa_layout = QHBoxLayout()
-        capa_layout.addStretch(); capa_layout.addWidget(self.lbl_capa); capa_layout.addStretch()
+        capa_layout.addStretch()
+        capa_layout.addWidget(self.lbl_capa)
+        capa_layout.addWidget(self.list_lyrics)
+        capa_layout.addStretch()
         header_layout.addLayout(capa_layout)
 
         self.lbl_musica = QLabel("Deck Ready")
@@ -398,13 +439,21 @@ class ControlWindow(QWidget):
         else:
             self.btn_pause.setText("⏯")
             
-        self.btn_exec_search = QPushButton("🔍 SYNC")
+        # --- ATUALIZAÇÃO: Botão MANUAL SYNC ajustado ---
+        self.btn_manual_sync = QPushButton("Manual Sync")
+        self.btn_manual_sync.setObjectName("BtnDeckAction")
+        self.btn_manual_sync.setFixedSize(120, 30) # Mais largo para caber a palavra
+        self.btn_manual_sync.setDisabled(True)
+        self.btn_manual_sync.setCheckable(True)
+            
+        self.btn_exec_search = QPushButton("SYNC")
         self.btn_exec_search.setObjectName("BtnDeckAction")
         self.btn_exec_search.setFixedSize(80, 30)
         self.btn_exec_search.hide()
 
         action_layout.addStretch()
         action_layout.addWidget(self.btn_pause)
+        action_layout.addWidget(self.btn_manual_sync)
         action_layout.addWidget(self.btn_exec_search)
         action_layout.addStretch()
         header_layout.addLayout(action_layout)
@@ -455,9 +504,6 @@ class ControlWindow(QWidget):
         overlay_layout.addWidget(self.btn_reload)
         self.main_layout.addWidget(self.frame_overlay)
         
-        # ==========================================
-        # CRÉDITOS DO PROJETO
-        # ==========================================
         credits_html = """
         <div style='text-align: center; font-size: 11px; line-height: 1.2;'>
             <span style='color: #888888;'>v0.0.1</span><br>
@@ -477,6 +523,8 @@ class ControlWindow(QWidget):
         self.btn_stop.clicked.connect(self.action_stop)
         
         self.btn_pause.clicked.connect(self.action_pause)
+        self.btn_manual_sync.toggled.connect(self.action_toggle_lyrics_list)
+        self.list_lyrics.itemClicked.connect(self.action_jump_to_lyric)
         self.btn_exec_search.clicked.connect(self.action_buscar_manual)
         
         self.cb_auto_sync.toggled.connect(self.action_toggle_autosync)
@@ -492,6 +540,7 @@ class ControlWindow(QWidget):
         self.iniciar_subprocesso_overlay()
         self.timer = QTimer(); self.timer.timeout.connect(self.update_ui_loop); self.timer.start(500)
 
+    # --- FUNÇÕES UTILITÁRIAS E DE UI ---
     def obter_caminho_asset(self, filename, subpasta="assets"):
         if getattr(sys, 'frozen', False):
             base_dir = sys._MEIPASS 
@@ -528,6 +577,7 @@ class ControlWindow(QWidget):
         btn.style().unpolish(btn)
         btn.style().polish(btn)
 
+    # --- LÓGICA DE UI E SINCRONIZAÇÃO ---
     def action_start_listen(self):
         self.manager.reset_state()
         self.manager.escutando = True
@@ -538,8 +588,14 @@ class ControlWindow(QWidget):
         self.lbl_musica.setText("Listening...")
         self.lbl_artista.setStyleSheet("font-size: 16px;")
         self.lbl_artista.setText("Please play a song")
+        
+        self.list_lyrics.hide()
+        self.lbl_capa.show()
         self.atualizar_capa_ui(None)
+        
         self.btn_pause.setDisabled(True)
+        self.btn_manual_sync.setDisabled(True)
+        self.btn_manual_sync.setChecked(False)
         
     def iniciar_timer_autosync(self):
         if self.manager.auto_sync_ativado:
@@ -555,6 +611,7 @@ class ControlWindow(QWidget):
         
         self.search_container.setVisible(checked)
         self.btn_pause.setVisible(not checked)
+        self.btn_manual_sync.setVisible(not checked)
         self.btn_exec_search.setVisible(checked)
 
     def action_toggle_autosync(self, checked):
@@ -567,7 +624,11 @@ class ControlWindow(QWidget):
         self.lbl_musica.setText("Deck Ready")
         self.lbl_artista.setStyleSheet("font-size: 16px;")
         self.lbl_artista.setText("Press Listen to start")
+        
+        self.list_lyrics.hide()
+        self.lbl_capa.show()
         self.atualizar_capa_ui(None)
+        
         self.ipt_artista.clear()
         self.ipt_musica.clear()
         self.cb_lang.setCurrentIndex(0)
@@ -575,12 +636,47 @@ class ControlWindow(QWidget):
         self.update_button_style(self.btn_listen, False)
         self.btn_manual_search.setChecked(False) 
         self.btn_pause.setDisabled(True)
+        self.btn_manual_sync.setDisabled(True)
+        self.btn_manual_sync.setChecked(False)
 
     def action_pause(self):
         if not self.manager.letra_sincronizada: return
-        self.manager.letra_pausada = not self.manager.letra_pausada
-        self.manager.momento_pausa = time.time() if self.manager.letra_pausada else 0
-        self.btn_pause.setStyleSheet("background-color: #a955ff;" if self.manager.letra_pausada else "")
+        if not self.manager.letra_pausada:
+            self.manager.letra_pausada = True
+            self.manager.momento_pausa = time.time()
+            self.btn_pause.setStyleSheet("background-color: #a955ff;")
+        else:
+            self.manager.letra_pausada = False
+            tempo_pausado = time.time() - self.manager.momento_pausa
+            self.manager.tempo_referencia_sistema += tempo_pausado
+            self.btn_pause.setStyleSheet("")
+
+    def action_toggle_lyrics_list(self, checked):
+        if checked:
+            self.lbl_capa.hide()
+            self.list_lyrics.clear()
+            
+            self.list_lyrics.setWordWrap(True)
+            
+            if self.manager.letra_sincronizada:
+                for item in self.manager.letra_sincronizada:
+                    list_item = QListWidgetItem(item['letra'])
+                    list_item.setData(Qt.ItemDataRole.UserRole, item['tempo'])
+                    list_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    
+                    self.list_lyrics.addItem(list_item)
+            self.list_lyrics.show()
+        else:
+            self.list_lyrics.hide()
+            self.lbl_capa.show()
+
+    def action_jump_to_lyric(self, item):
+        tempo_alvo = item.data(Qt.ItemDataRole.UserRole)
+        self.manager.tempo_referencia_sistema = time.time() - tempo_alvo
+        if self.manager.letra_pausada:
+            self.manager.letra_pausada = False
+            self.btn_pause.setStyleSheet("")
+        self.btn_manual_sync.setChecked(False)
 
     def aplicar_traducao_ui(self):
         lang = {"Original": "original", "Pt-Br": "pt", "Espanol": "es", "English": "en"}.get(self.cb_lang.currentText(), "original")
@@ -588,21 +684,22 @@ class ControlWindow(QWidget):
             self.manager.letra_sincronizada = self.manager.letra_original
         elif self.manager.gerar_traducao(lang): 
             self.manager.letra_sincronizada = self.manager.traducoes_cacheadas[lang]
+            if self.btn_manual_sync.isChecked():
+                self.action_toggle_lyrics_list(True)
 
     def action_buscar_manual(self):
         art, mus = self.ipt_artista.text(), self.ipt_musica.text()
         if not art or not mus: return
-        
         self.btn_manual_search.setChecked(False) 
         self.manager.reset_state()
         self.ultima_musica_traduzida = None
-        
         self.lbl_musica.setStyleSheet("font-size: 22px;")
         self.lbl_musica.setText("Searching...")
         self.lbl_artista.setStyleSheet("font-size: 16px;")
         self.lbl_artista.setText("Fetching lyrics online...")
+        self.list_lyrics.hide()
+        self.lbl_capa.show()
         self.atualizar_capa_ui(None) 
-        
         def worker():
             letra = self.manager.buscar_letra_lrclib(art, mus)
             self.manager.busca_concluida = True
@@ -619,7 +716,6 @@ class ControlWindow(QWidget):
     def update_ui_loop(self):
         if self.manager.musica_atual and self.btn_listen.objectName() == "BtnListenActive":
             self.update_button_style(self.btn_listen, False)
-
         if self.manager.escutando and not self.manager.musica_atual:
             tempo_espera = time.time() - self.manager.inicio_escuta
             if tempo_espera > 22:
@@ -628,31 +724,27 @@ class ControlWindow(QWidget):
                 self.lbl_artista.setText("Still trying to catch the beat...")
             elif tempo_espera > 5:
                 self.lbl_artista.setText("Audio is tricky!")
-                
         elif self.manager.musica_atual:
             mus = self.manager.musica_atual
             art = self.manager.artista_atual
-            
             if len(mus) > 22:
                 self.lbl_musica.setStyleSheet("font-size: 16px;")
                 self.lbl_musica.setText(mus[:35] + "..." if len(mus) > 35 else mus)
             else:
                 self.lbl_musica.setStyleSheet("font-size: 22px;")
                 self.lbl_musica.setText(mus)
-
             if len(art) > 25:
                 self.lbl_artista.setStyleSheet("font-size: 13px;")
                 self.lbl_artista.setText(art[:40] + "..." if len(art) > 40 else art)
             else:
                 self.lbl_artista.setStyleSheet("font-size: 16px;")
                 self.lbl_artista.setText(art)
-            
             if self.manager.musica_atual != self.ultima_musica_traduzida and self.manager.letra_original:
                 self.aplicar_traducao_ui()
                 self.ultima_musica_traduzida = self.manager.musica_atual
-            
         if self.manager.letra_sincronizada: 
             self.btn_pause.setDisabled(False)
+            self.btn_manual_sync.setDisabled(False)
 
 def encontrar_porta_livre():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
